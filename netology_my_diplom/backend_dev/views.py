@@ -5,20 +5,23 @@ from .serializers import UserSerializer, ShopSerializer, CategorySerializer, Pro
 from .utils import send_invoice_email
 from django.shortcuts import get_object_or_404
 from django.http import JsonResponse
+from django.core.cache import cache
+
+
+def my_view(request):
+    data = cache.get('my_data')
+    if not data:
+        data = expensive_query()  # Ваша функция для получения данных
+        cache.set('my_data', data, timeout=60*15)  # Кэшировать на 15 минут
+    return JsonResponse(data)
 
 
 def fulfill_order(request, order_id):
     order = get_object_or_404(Order, id=order_id)
-
-    # Логика исполнения заказа
-    order.state = 'confirmed'  # Измените статус заказа
+    order.state = 'confirmed'
     order.save()
-
-    # Отправка накладной на email администратора
-    send_invoice_email(order)
-
+    send_invoice_email_task.delay(order.id)  # Асинхронный вызов
     return JsonResponse({'status': 'success', 'message': 'Заказ исполнен и накладная отправлена.'})
-
 
 # ViewSet для пользователя
 class UserViewSet(viewsets.ModelViewSet):
